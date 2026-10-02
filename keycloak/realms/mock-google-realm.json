@@ -1,0 +1,207 @@
+{
+  "realm": "mock-google",
+  "displayName": "Mock Google Workspace (TEST IdP)",
+  "enabled": true,
+  "sslRequired": "none",
+  "loginWithEmailAllowed": true,
+  "groups": [
+    {
+      "name": "advisors"
+    },
+    {
+      "name": "underwriters"
+    },
+    {
+      "name": "support"
+    }
+  ],
+  "users": [
+    {
+      "username": "anna.advisor",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "anna.advisor@e2e.test",
+      "firstName": "Anna",
+      "lastName": "Advisor",
+      "attributes": {
+        "staffId": [
+          "E1001"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/advisors"
+      ]
+    },
+    {
+      "username": "ulf.underwriter",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "ulf.underwriter@e2e.test",
+      "firstName": "Ulf",
+      "lastName": "Underwriter",
+      "attributes": {
+        "staffId": [
+          "E1002"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/advisors",
+        "/underwriters"
+      ]
+    },
+    {
+      "username": "sara.support",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "sara.support@e2e.test",
+      "firstName": "Sara",
+      "lastName": "Support",
+      "attributes": {
+        "staffId": [
+          "E1003"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/support"
+      ]
+    },
+    {
+      "username": "lars.leaver",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "lars.leaver@e2e.test",
+      "firstName": "Lars",
+      "lastName": "Leaver",
+      "attributes": {
+        "staffId": [
+          "E1004"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/advisors"
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "http://localhost:8080/realms/staff",
+      "name": "Auth broker - staff realm (SAML SP)",
+      "protocol": "saml",
+      "enabled": true,
+      "frontchannelLogout": true,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:8080/realms/staff/broker/google-saml/endpoint*"
+      ],
+      "attributes": {
+        "saml.server.signature": "true",
+        "saml.assertion.signature": "false",
+        "saml.client.signature": "false",
+        "saml.authnstatement": "true",
+        "saml_name_id_format": "email",
+        "saml_force_name_id_format": "true",
+        "saml_assertion_consumer_url_post": "http://localhost:8080/realms/staff/broker/google-saml/endpoint",
+        "saml_single_logout_service_url_post": "http://localhost:8080/realms/staff/broker/google-saml/endpoint"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "saml",
+          "protocolMapper": "saml-group-membership-mapper",
+          "config": {
+            "attribute.name": "groups",
+            "full.path": "false",
+            "single": "false",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "staffId",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-attribute-mapper",
+          "config": {
+            "user.attribute": "staffId",
+            "attribute.name": "staffId",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "firstName",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": {
+            "user.attribute": "firstName",
+            "attribute.name": "firstName",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "lastName",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": {
+            "user.attribute": "lastName",
+            "attribute.name": "lastName",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "saml",
+          "protocolMapper": "saml-user-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "attribute.name": "email",
+            "attribute.nameformat": "Basic"
+          }
+        },
+        {
+          "name": "amr (2-step verification)",
+          "protocol": "saml",
+          "protocolMapper": "saml-hardcode-attribute-mapper",
+          "config": {
+            "attribute.name": "amr",
+            "attribute.value": "google-2sv",
+            "attribute.nameformat": "Basic"
+          }
+        }
+      ]
+    }
+  ],
+  "displayNameHtml": "<div>Mock Google Workspace (TEST IdP)</div><div style=\"font-size:13px;text-transform:none;letter-spacing:0;margin-top:8px;opacity:.8\">Test users: anna.advisor &middot; ulf.underwriter &middot; sara.support &middot; lars.leaver<br>password: test &nbsp;(not the Keycloak admin login)</div>",
+  "eventsEnabled": true,
+  "eventsExpiration": 86400,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

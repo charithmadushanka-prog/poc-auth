@@ -1,0 +1,602 @@
+{
+  "realm": "staff",
+  "displayName": "E2E Auth broker - STAFF realm",
+  "enabled": true,
+  "sslRequired": "none",
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      {
+        "name": "advisor",
+        "description": "Mapped from Google group advisors"
+      },
+      {
+        "name": "underwriter",
+        "description": "Mapped from Google group underwriters"
+      },
+      {
+        "name": "support",
+        "description": "Mapped from Google group support - may impersonate customers in TEST"
+      }
+    ]
+  },
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"unmanagedAttributePolicy\":\"ENABLED\",\"attributes\":[{\"name\":\"username\",\"displayName\":\"Username\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"Email\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"First name\",\"validations\":{\"length\":{\"max\":255}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"Last name\",\"validations\":{\"length\":{\"max\":255}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+          ]
+        }
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "basic",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "sub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-sub-mapper",
+          "config": {
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "auth_time",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usersessionmodel-note-mapper",
+          "config": {
+            "user.session.note": "AUTH_TIME",
+            "claim.name": "auth_time",
+            "jsonType.label": "long",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "given name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "firstName",
+            "claim.name": "given_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "family name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "lastName",
+            "claim.name": "family_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "roles",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "acr",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "acr loa level",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-acr-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "origination",
+      "description": "Access to Entra Origination API",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "aud entra-origination-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "entra-origination-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "staff-claims",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "staff_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "staff_id",
+            "claim.name": "staff_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups (from Google)",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "google_groups",
+            "claim.name": "groups",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "amr",
+            "claim.name": "amr",
+            "multivalued": "true",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "impersonate-customer",
+      "description": "TEST ONLY: act as a customer from the customer portal",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true"
+      }
+    }
+  ],
+  "identityProviders": [
+    {
+      "alias": "google-saml",
+      "displayName": "Google Workspace (mock)",
+      "providerId": "saml",
+      "enabled": true,
+      "trustEmail": true,
+      "storeToken": false,
+      "firstBrokerLoginFlowAlias": "first broker login",
+      "config": {
+        "syncMode": "FORCE",
+        "entityId": "http://localhost:8080/realms/staff",
+        "singleSignOnServiceUrl": "http://localhost:8080/realms/mock-google/protocol/saml",
+        "singleLogoutServiceUrl": "http://localhost:8080/realms/mock-google/protocol/saml",
+        "nameIDPolicyFormat": "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+        "principalType": "SUBJECT",
+        "postBindingResponse": "true",
+        "postBindingAuthnRequest": "true",
+        "postBindingLogout": "true",
+        "validateSignature": "false",
+        "wantAuthnRequestsSigned": "false",
+        "wantAssertionsSigned": "false",
+        "wantAssertionsEncrypted": "false",
+        "backchannelSupported": "false",
+        "loginHint": "true"
+      }
+    }
+  ],
+  "identityProviderMappers": [
+    {
+      "name": "firstName",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "firstName",
+        "user.attribute": "firstName"
+      }
+    },
+    {
+      "name": "lastName",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "lastName",
+        "user.attribute": "lastName"
+      }
+    },
+    {
+      "name": "email",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "email",
+        "user.attribute": "email"
+      }
+    },
+    {
+      "name": "staffId",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "staffId",
+        "user.attribute": "staff_id"
+      }
+    },
+    {
+      "name": "groups",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "groups",
+        "user.attribute": "google_groups"
+      }
+    },
+    {
+      "name": "amr",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-user-attribute-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "amr",
+        "user.attribute": "amr"
+      }
+    },
+    {
+      "name": "group advisors -> role advisor",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "groups",
+        "attribute.value": "advisors",
+        "role": "advisor"
+      }
+    },
+    {
+      "name": "group underwriters -> role underwriter",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "groups",
+        "attribute.value": "underwriters",
+        "role": "underwriter"
+      }
+    },
+    {
+      "name": "group support -> role support",
+      "identityProviderAlias": "google-saml",
+      "identityProviderMapper": "saml-role-idp-mapper",
+      "config": {
+        "syncMode": "FORCE",
+        "attribute.name": "groups",
+        "attribute.value": "support",
+        "role": "support"
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "backoffice-bff",
+      "name": "Backoffice BFF",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "backoffice-bff-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3001/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3001"
+      ],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3001/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "acr",
+        "origination",
+        "staff-claims"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "customer-bff-impersonation",
+      "name": "Customer BFF - staff impersonation (TEST ONLY)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "impersonation-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/impersonate/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "acr",
+        "origination",
+        "staff-claims",
+        "impersonate-customer"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "origination-api-admin",
+      "name": "Entra Origination - leaver check (ends sessions)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "origination-admin-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "defaultClientScopes": [
+        "basic"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "test-direct",
+      "name": "E2E test client (direct grant, at+jwt)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "access.token.header.type.rfc9068": "true"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "origination",
+        "staff-claims"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "test-legacy-typ",
+      "name": "E2E test client (typ JWT, not at+jwt)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "origination",
+        "staff-claims"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "test-no-aud",
+      "name": "E2E test client (no origination audience)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "access.token.header.type.rfc9068": "true"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "staff-claims"
+      ],
+      "optionalClientScopes": []
+    },
+    {
+      "clientId": "test-expiring",
+      "name": "E2E test client (1s access tokens)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "test-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "attributes": {
+        "access.token.header.type.rfc9068": "true",
+        "access.token.lifespan": "1"
+      },
+      "defaultClientScopes": [
+        "basic",
+        "profile",
+        "email",
+        "roles",
+        "origination",
+        "staff-claims"
+      ],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "breakglass",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "breakglass@e2e.test",
+      "firstName": "Break",
+      "lastName": "Glass",
+      "attributes": {
+        "staff_id": [
+          "E9999"
+        ]
+      },
+      "realmRoles": [
+        "advisor"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "service-account-origination-api-admin",
+      "enabled": true,
+      "serviceAccountClientId": "origination-api-admin",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users"
+        ]
+      }
+    }
+  ],
+  "eventsEnabled": true,
+  "eventsExpiration": 86400,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

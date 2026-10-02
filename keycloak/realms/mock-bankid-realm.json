@@ -1,0 +1,102 @@
+{
+  "realm": "mock-bankid",
+  "displayName": "Mock BankID via Scrive (TEST IdP)",
+  "enabled": true,
+  "sslRequired": "none",
+  "users": [
+    {
+      "username": "sven",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "sven.svensson@kund.test",
+      "firstName": "Sven",
+      "lastName": "Svensson",
+      "attributes": {
+        "personal_number": [
+          "199001019999"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "lisa",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "lisa.larsson@kund.test",
+      "firstName": "Lisa",
+      "lastName": "Larsson",
+      "attributes": {
+        "personal_number": [
+          "198505059998"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "customer-broker",
+      "name": "Auth broker - customer realm (OIDC RP)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "bankid-broker-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8080/realms/customer/broker/bankid/endpoint*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "protocolMappers": [
+        {
+          "name": "personal_number",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "personal_number",
+            "claim.name": "personal_number",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "amr",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "config": {
+            "claim.name": "amr",
+            "claim.value": "bankid",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "displayNameHtml": "<div>Mock BankID via Scrive (TEST IdP)</div><div style=\"font-size:13px;text-transform:none;letter-spacing:0;margin-top:8px;opacity:.8\">Test users: sven &middot; lisa<br>password: test &nbsp;(not the Keycloak admin login)</div>",
+  "eventsEnabled": true,
+  "eventsExpiration": 86400,
+  "eventsListeners": [
+    "jboss-logging"
+  ],
+  "adminEventsEnabled": true,
+  "adminEventsDetailsEnabled": true
+}

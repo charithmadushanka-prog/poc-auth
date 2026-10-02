@@ -1,0 +1,52 @@
+# Local demo of the auth architecture. Everything binds to 127.0.0.1 only.
+#   Keycloak (auth broker + mock upstream IdPs)  http://localhost:8080  (admin/admin)
+#   Customer portal (Customer BFF)              http://localhost:3000
+#   Backoffice portal (Backoffice BFF)          http://localhost:3001
+#   Entra Origination API + people-log console  http://localhost:4000
+#
+# Browser-facing URLs use localhost:8080 (= the iss claim); services reach
+# Keycloak on the docker network as keycloak:8080 for token/JWKS/admin calls.
+name: poc-auth
+
+x-kc: &kc
+  KC_PUBLIC: http://localhost:8080
+  KC_INTERNAL: http://keycloak:8080
+
+services:
+  keycloak:
+    build: ./keycloak
+    ports: ["127.0.0.1:8080:8080"]
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+      start_period: 5s
+
+  origination-api:
+    build: { context: ., args: { SERVICE: origination-api } }
+    environment:
+      <<: *kc
+      KC_ADMIN_CLIENT: origination-api-admin
+      KC_ADMIN_SECRET: origination-admin-secret
+      JWT_LEEWAY: 5s
+    ports: ["127.0.0.1:4000:4000"]
+    depends_on: { keycloak: { condition: service_healthy } }
+
+  customer-bff:
+    build: { context: ., args: { SERVICE: customer-bff } }
+    environment:
+      <<: *kc
+      PUBLIC_URL: http://localhost:3000
+      API_URL: http://origination-api:4000
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: { keycloak: { condition: service_healthy }, origination-api: { condition: service_started } }
+
+  backoffice-bff:
+    build: { context: ., args: { SERVICE: backoffice-bff } }
+    environment:
+      <<: *kc
+      PUBLIC_URL: http://localhost:3001
+      API_URL: http://origination-api:4000
+    ports: ["127.0.0.1:3001:3001"]
+    depends_on: { keycloak: { condition: service_healthy }, origination-api: { condition: service_started } }
