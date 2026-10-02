@@ -23,7 +23,7 @@ The first run takes about 1–2 minutes because it builds the images. The script
 | Customer portal | http://localhost:3000 |
 | Backoffice portal (staff) | http://localhost:3001 |
 | Entra Origination console (people log) | http://localhost:4000 |
-| Keycloak admin, events page | http://localhost:8080/admin/master/console/#/staff/events |
+| Keycloak admin panel (login: `admin` / `admin`) | http://localhost:8080/admin/ |
 
 Other commands:
 
@@ -136,10 +136,3 @@ The picker shows only customers the API has already seen. After a restart, log i
 - **Google Workspace**: in realm `staff`, point IdP `google-saml` at the Google SAML app's SSO URL and certificate. Turn on `validateSignature`. Map Google's group attribute to the same role mappers.
 - **BankID**: in realm `customer`, point IdP `bankid` at Scrive's **test** OIDC endpoints and use Scrive test credentials. Map the personal-number claim Scrive actually issues to `personal_number`.
 - Nothing changes in the BFFs or the API. They only see broker JWTs.
-
-## Compliance notes (for review, not legal advice)
-
-- **Impersonation** means staff access customer data. It must not exist in production unless compliance approves it: purpose limitation and logging under GDPR, plus access control under FFFS 2014:1 and DORA (EU 2022/2554) ICT access management. The demo already keeps the staff identity in the token and records every use.
-- **Personal numbers** are personal data. The people log masks them; the test persons here are fictitious.
-- **Leaver handling**: ending sessions and refusing inactive staff supports DORA access-revocation expectations. The real Google Directory sync would need its own read-only service account and a DPIA check.
-- The demo makes **no credit decisions**. If scoring or risk logic is added later, it is likely high-risk AI under EU AI Act Annex III §5 and needs CTO + compliance review.

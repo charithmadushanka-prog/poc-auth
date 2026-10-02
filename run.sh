@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 URLS=(
-  "http://localhost:8080/admin/master/console/#/staff/events"   # Keycloak admin: staff realm events (admin / admin)
+  "http://localhost:8080/admin/"                           # Keycloak admin panel login (admin / admin)
   "http://localhost:3000"                                  # Customer portal
   "http://localhost:3001"                                  # Backoffice portal
   "http://localhost:4000"                                  # Entra Origination console
@@ -46,6 +46,7 @@ wait_for() {
 echo "==> Waiting for services"
 wait_for http://localhost:8080/realms/staff/.well-known/openid-configuration "Keycloak (staff realm)"
 wait_for http://localhost:8080/realms/customer/.well-known/openid-configuration "Keycloak (customer realm)"
+wait_for http://localhost:8080/admin/master/console/ "Keycloak admin panel"
 wait_for http://localhost:4000/admin/state "Entra Origination API"
 wait_for http://localhost:3000/ "Customer BFF"
 wait_for http://localhost:3001/ "Backoffice BFF"
@@ -67,7 +68,7 @@ for u in "${URLS[@]}"; do "$opener" "$u" >/dev/null 2>&1 || echo "    open $u"; 
 
 cat <<'TXT'
 
-  Keycloak admin           http://localhost:8080/admin      admin / admin
+  Keycloak admin panel     http://localhost:8080/admin      admin / admin   (events: realm -> Events)
   Customer portal          http://localhost:3000            BankID (mock): sven / test, lisa / test
   Backoffice portal        http://localhost:3001            Google (mock): anna.advisor, ulf.underwriter,
                                                             sara.support, lars.leaver  (password: test)
