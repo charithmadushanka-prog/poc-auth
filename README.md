@@ -55,11 +55,34 @@ Keycloak and the API keep everything in memory, so every restart begins from a c
 | `sara.support` | `test` | Sara Support, E1003 | support → `support` | view cases; impersonate customers in the customer portal |
 | `lars.leaver` | `test` | Lars Leaver, E1004 | advisors → `advisor` | use for the leaver demo (suspend in the console) |
 
-### Keycloak admin console (http://localhost:8080/admin)
+### Keycloak admin console
 
-| Username | Password | Note |
-|---|---|---|
-| `admin` | `admin` | **Only** for the admin console. It does not work on the mock BankID or Google screens. |
+| | |
+|---|---|
+| URL | http://localhost:8080/admin (`./run.sh` opens it for you) |
+| Username | `admin` |
+| Password | `admin` |
+| Realm to sign in to | `master`, the default. Just enter the username and password. |
+
+**How to log in**
+1. Open http://localhost:8080/admin. It redirects to the Keycloak sign-in page titled **"Sign in to your account"** (realm *Keycloak / master*).
+2. Enter username `admin`, password `admin`, then **Sign In**.
+3. Use the realm dropdown at the top left to switch between the four realms:
+   - `staff`: staff broker realm (Google SAML upstream, roles advisor / underwriter / support)
+   - `customer`: customer broker realm (BankID upstream)
+   - `mock-google`: the fake Google Workspace, with its test staff users and groups
+   - `mock-bankid`: the fake BankID, with its test customers
+
+**What to look at**
+- **Events** (left menu, in a realm). The **User events** tab has every login, logout, token request and failed attempt (e.g. `LOGIN_ERROR user_not_found`). The **Admin events** tab has the leaver check ending a session. Kept 24 h, until Keycloak restarts.
+- **Users**. In `staff`/`customer` these are the people who have logged in through the broker. Open one to see **Attributes** (`staff_id`, `google_groups`, `personal_number`, `amr`), **Role mapping**, **Identity provider links** and **Sessions**.
+- **Identity providers** → `google-saml` / `bankid`, then **Mappers**. This is where Google groups become roles and claims are mapped.
+- **Clients** → e.g. `backoffice-bff` → **Client scopes** → *Evaluate*. Shows the exact token a user would get.
+
+**Good to know**
+- `admin` / `admin` works **only** here. It does not work on the mock BankID or mock Google login screens: those need the demo users above, password `test`. The browser may autofill `admin` on those screens because they run on the same address (`localhost:8080`). Clear it if so.
+- The admin login is set in `keycloak/Dockerfile` (`KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD`). Local demo only.
+- Changes you make in the console are lost when Keycloak restarts. To keep a change, put it in `keycloak/realms/*.json`.
 
 ### Tips
 - **Easiest way to log in:** use the buttons on each portal, e.g. "Log in with BankID as Sven Svensson" or "Ulf Underwriter · underwriter". They fill in the username, so you only type `test`.
