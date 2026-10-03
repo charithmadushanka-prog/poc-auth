@@ -1,2 +1,4 @@
 .DS_Store
 **/.DS_Store
+# Company-specific Google Workspace SAML metadata: keep it out of the repo.
+google-saml/*.xml

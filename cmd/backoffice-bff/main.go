@@ -16,7 +16,9 @@ var (
 	self   = web.Env("PUBLIC_URL", "http://localhost:3001")
 	apiURL = web.Env("API_URL", "http://localhost:4000")
 	store  = web.NewStore("bo_sid", self)
-	client = (&oidc.Client{
+	// Set by run.sh when a real Google Workspace SAML app is connected.
+	realGoogle = web.Env("REAL_GOOGLE_IDP", "")
+	client     = (&oidc.Client{
 		PublicRealmURL:   web.Env("KC_PUBLIC", "http://localhost:8080") + "/realms/staff",
 		InternalRealmURL: web.Env("KC_INTERNAL", "http://localhost:8080") + "/realms/staff",
 		ClientID:         "backoffice-bff",
@@ -42,7 +44,11 @@ func main() {
 func login(w http.ResponseWriter, r *http.Request) {
 	s := store.GetOrCreate(w, r)
 	s.State, s.Nonce, s.PKCE = oidc.RandomString(16), oidc.RandomString(16), oidc.RandomString(32)
-	http.Redirect(w, r, client.AuthURL(s.State, s.Nonce, s.PKCE, r.URL.Query().Get("user")), http.StatusFound)
+	idp := client.IdpHint
+	if r.URL.Query().Get("idp") == "real" && realGoogle != "" {
+		idp = realGoogle
+	}
+	http.Redirect(w, r, client.AuthURLFor(idp, s.State, s.Nonce, s.PKCE, r.URL.Query().Get("user")), http.StatusFound)
 }
 
 func callback(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +137,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 	s := store.Get(r)
 	data := map[string]any{
 		"Title": "Backoffice", "App": "Backoffice portal", "Tag": "staff · advisor & underwriter",
-		"Sub": "Backoffice BFF → Entra Origination API", "Accent": "#d2a8ff", "S": s,
+		"Sub": "Backoffice BFF → Entra Origination API", "Accent": "#d2a8ff", "S": s, "RealGoogle": realGoogle != "",
 		"LoggedOut": r.URL.Query().Has("logged_out"),
 	}
 	if s.LoggedIn() {
@@ -162,6 +168,8 @@ var page = web.Page(`{{define "content"}}
 <a class="btn" href="/login?user=sara.support">Sara Support · support</a>
 <a class="btn" href="/login?user=lars.leaver">Lars Leaver · advisor (leaver demo)</a></p>
 <a class="btn ghost" href="/login">Sign in with Google Workspace (mock) - type username yourself</a>
+{{if .RealGoogle}}<p style="margin-top:14px"><a class="btn" style="background:#3fb950" href="/login?idp=real">Sign in with real Google Workspace (TEST app)</a>
+<span class="muted">Uses your real Google account through the company's test SAML app.</span></p>{{end}}
 <p class="muted">Use a staff user above, not the Keycloak admin login (admin/admin only works in the Keycloak admin console). If your browser autofills "admin", clear it.</p></div>
 {{else}}
 <div class="grid">

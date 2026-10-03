@@ -508,6 +508,21 @@ func main() {
 		check(tc[1]+" -> mock login form with username "+tc[2], strings.Contains(body, loginIDs[0]) && strings.Contains(body, `value="`+tc[2]+`"`), u)
 	}
 
+	// Optional: the "real Google" identity provider added by cmd/google-saml-setup.
+	// E2E_REAL_GOOGLE_USER/PASSWORD = a test account in that Google Workspace
+	// (or a mock user when the setup was pointed at the mock's metadata).
+	if user := os.Getenv("E2E_REAL_GOOGLE_USER"); user != "" {
+		section("8c. Real Google Workspace SAML app (google-real)")
+		g := newBrowser()
+		u, _ := g.login(backoff+"/login?idp=real&user="+url.QueryEscape(user), user, os.Getenv("E2E_REAL_GOOGLE_PASSWORD"))
+		st := g.state(backoff)
+		check("login through google-real lands on backoffice", strings.HasPrefix(u, backoff) && st.LoggedIn, u)
+		check("staff token has a name and email", st.Claims["name"] != nil && st.Claims["email"] != nil, st.Claims["name"], st.Claims["email"])
+		check("staff token has roles from Google groups", len(appRoles(strs(st.Claims["roles"]))) > 0, st.Claims["roles"], st.Claims["groups"])
+		code, body := g.act(backoff, "/action", "op", "me")
+		check("Origination API accepts the token", code == 200, code, body)
+	}
+
 	section("9. Logout")
 	u, _, _ = sven.do("POST", customer+"/logout", url.Values{"csrf": {sven.state(customer).CSRF}})
 	check("customer logout returns to portal via broker end-session", strings.HasPrefix(u, customer), u)
@@ -550,4 +565,14 @@ func snippet(s string) string {
 		s = s[:200]
 	}
 	return s
+}
+
+func appRoles(rs []string) []string {
+	var out []string
+	for _, r := range rs {
+		if r != "offline_access" && r != "uma_authorization" && !strings.HasPrefix(r, "default-roles-") {
+			out = append(out, r)
+		}
+	}
+	return out
 }

@@ -90,6 +90,57 @@ Keycloak and the API keep everything in memory, so every restart begins from a c
 - **Impersonation:** first log in once as `sven` or `lisa`, so the customer exists in the API. Then on the customer portal choose **Sign in as Sara Support (allowed)**, and pick the customer.
 - **Log out** is at the top right of both portals.
 
+## Real Google Workspace (optional test integration)
+
+Google has no public test identity provider, so testing against real Google needs a **custom SAML app in our Google Workspace**. It sits next to the mock: the Backoffice then shows an extra button, **"Sign in with real Google Workspace (TEST app)"**. The services don't change at all.
+
+### 1. Ask a Google Workspace super admin to create the app
+In the Google Admin console, go to **Apps → Web and mobile apps → Add app → Add custom SAML app**.
+
+| Step in Google | Value |
+|---|---|
+| App name | `Entra auth POC (test)` |
+| Google Identity Provider details | **Download metadata** → send us the XML file |
+| ACS URL | `http://localhost:8080/realms/staff/broker/google-real/endpoint` |
+| Entity ID | `http://localhost:8080/realms/staff` |
+| Signed response | ✅ tick it |
+| Name ID format / Name ID | `EMAIL` / *Basic Information → Primary email* |
+
+Attribute mapping (Google attribute → app attribute):
+
+| Google directory attribute | App attribute |
+|---|---|
+| Basic Information → First name | `firstName` |
+| Basic Information → Last name | `lastName` |
+| Basic Information → Primary email | `email` |
+| Employee details → Employee ID | `staffId` |
+| **Group membership**: pick the advisor / underwriter / support groups | `groups` |
+
+Then **User access → ON** for a test group or organisational unit only.
+
+> If Google refuses an `http://localhost` ACS URL, Keycloak needs HTTPS for this test (a local certificate or a tunnel). We haven't been able to confirm this without an app.
+
+### 2. Connect it
+```bash
+cp ~/Downloads/GoogleIDPMetadata.xml google-saml/google-idp-metadata.xml   # git-ignored
+./run.sh
+```
+`run.sh` notices the file and runs `cmd/google-saml-setup`. That tool:
+- adds the identity provider `google-real` to the staff realm, using the SSO URL and signing certificate from the metadata, with **signature validation on**
+- adds the same mappers as the mock: names, email, staff ID, groups → `google_groups`, and groups → roles `advisor` / `underwriter` / `support`
+
+Run the tool on its own with `go run ./cmd/google-saml-setup -h` to see every flag.
+
+### 3. Check and adjust
+- Log in with the new button, then look in Keycloak at **staff → Users → (you) → Attributes**. `google_groups` shows the exact values Google sends. If they differ from `advisors` / `underwriters` / `support`, set them with, for example, `GOOGLE_SAML_FLAGS="-group-advisor=Advisors -group-underwriter=Underwriters" ./run.sh`.
+- **MFA:** Google doesn't send `amr`. By default the setup adds `amr=google-2sv`, which is only correct if Workspace **enforces 2-step verification** for these users. Pass `-assume-2sv=false` to see the API refuse the login ("MFA required") instead.
+- **Already logged in through the mock with the same email?** Keycloak asks to link the accounts. Use a person who hasn't used the mock, or confirm the link.
+- **Automated check:** `E2E_REAL_GOOGLE_USER=you@company E2E_REAL_GOOGLE_PASSWORD=... go run ./cmd/e2e` runs the real-Google login as well. This only works for accounts without an extra Google 2SV prompt, so normally test by hand.
+
+**How this was tested without a Google app:** the setup tool was run against the mock Google's own SAML metadata, with signature validation on and a staff user who had never logged in. The login worked end to end. With a wrong signing certificate it was rejected (`invalid_signature`).
+
+**Note:** with real Google, real staff names and emails pass through the local Keycloak (in memory only). Use test accounts where possible.
+
 ## Demo users for automated tests only
 
 These are used by `cmd/e2e` (direct API calls). You don't need them in the UI.
@@ -97,6 +148,7 @@ These are used by `cmd/e2e` (direct API calls). You don't need them in the UI.
 | Realm / client | User | Purpose |
 |---|---|---|
 | staff realm, local user | `breakglass` / `test` | a valid token without MFA, which the API must refuse |
+| mock Google, user | `gina.newhire` / `test` | a staff member who has never logged in, used to test the real-Google path against the mock |
 | clients `test-direct`, `test-legacy-typ`, `test-no-aud`, `test-expiring` | secret `test-secret` | produce tokens with a wrong `typ`, missing `aud`, or quick expiry |
 
 ## How it maps to the diagram
@@ -156,6 +208,6 @@ The picker shows only customers the API has already seen. After a restart, log i
 
 ## Going from mocks to real test environments
 
-- **Google Workspace**: in realm `staff`, point IdP `google-saml` at the Google SAML app's SSO URL and certificate. Turn on `validateSignature`. Map Google's group attribute to the same role mappers.
+- **Google Workspace**: see "Real Google Workspace (optional test integration)" above. A metadata file plus `./run.sh` connects it, with signature validation on.
 - **BankID**: in realm `customer`, point IdP `bankid` at Scrive's **test** OIDC endpoints and use Scrive test credentials. Map the personal-number claim Scrive actually issues to `personal_number`.
 - Nothing changes in the BFFs or the API. They only see broker JWTs.

@@ -60,6 +60,11 @@ func Challenge(verifier string) string {
 // AuthURL builds the authorization request. loginHint (optional) pre-fills the
 // username on the upstream test IdP's login form.
 func (c *Client) AuthURL(state, nonce, pkceVerifier, loginHint string) string {
+	return c.AuthURLFor(c.IdpHint, state, nonce, pkceVerifier, loginHint)
+}
+
+// AuthURLFor is AuthURL with an explicit upstream identity provider alias.
+func (c *Client) AuthURLFor(idp, state, nonce, pkceVerifier, loginHint string) string {
 	q := url.Values{
 		"client_id":             {c.ClientID},
 		"response_type":         {"code"},
@@ -73,8 +78,8 @@ func (c *Client) AuthURL(state, nonce, pkceVerifier, loginHint string) string {
 	if loginHint != "" {
 		q.Set("login_hint", loginHint)
 	}
-	if c.IdpHint != "" {
-		q.Set("kc_idp_hint", c.IdpHint)
+	if idp != "" {
+		q.Set("kc_idp_hint", idp)
 	}
 	return c.PublicRealmURL + "/protocol/openid-connect/auth?" + q.Encode()
 }

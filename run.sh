@@ -31,6 +31,15 @@ for p in 8080 3000 3001 4000; do
   fi
 done
 
+# Optional real Google Workspace SAML app (see README "Real Google Workspace").
+GOOGLE_METADATA=google-saml/google-idp-metadata.xml
+if [[ -f "$GOOGLE_METADATA" ]]; then export REAL_GOOGLE_IDP=google-real; else export REAL_GOOGLE_IDP=; fi
+
+go_run() {
+  if command -v go >/dev/null; then go run "$@"
+  else docker run --rm --network host -v "$PWD":/src -w /src golang:1.25-alpine go run "$@"; fi
+}
+
 echo "==> Building and starting (Keycloak first boot takes ~20s)"
 # Recreate so Keycloak re-imports the realm files on every run.
 docker compose up -d --build --force-recreate --wait
@@ -51,13 +60,14 @@ wait_for http://localhost:4000/admin/state "Entra Origination API"
 wait_for http://localhost:3000/ "Customer BFF"
 wait_for http://localhost:3001/ "Backoffice BFF"
 
+if [[ -n "$REAL_GOOGLE_IDP" ]]; then
+  echo "==> Connecting real Google Workspace SAML app ($GOOGLE_METADATA)"
+  go_run ./cmd/google-saml-setup -metadata "$GOOGLE_METADATA" ${GOOGLE_SAML_FLAGS:-}
+fi
+
 if [[ "${1:-up}" == "test" ]]; then
   echo "==> Running end-to-end checks"
-  if command -v go >/dev/null; then
-    go run ./cmd/e2e
-  else
-    docker run --rm --network host -v "$PWD":/src -w /src golang:1.25-alpine go run ./cmd/e2e
-  fi
+  go_run ./cmd/e2e
   # Tests leave rows in the in-memory tables; restart the API for a clean demo.
   docker compose restart origination-api >/dev/null && wait_for http://localhost:4000/admin/state "Entra Origination API (reset)"
 fi

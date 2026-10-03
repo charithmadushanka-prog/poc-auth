@@ -47,6 +47,7 @@ services:
     environment:
       <<: *kc
       PUBLIC_URL: http://localhost:3001
+      REAL_GOOGLE_IDP: ${REAL_GOOGLE_IDP:-}
       API_URL: http://origination-api:4000
     ports: ["127.0.0.1:3001:3001"]
     depends_on: { keycloak: { condition: service_healthy }, origination-api: { condition: service_started } }

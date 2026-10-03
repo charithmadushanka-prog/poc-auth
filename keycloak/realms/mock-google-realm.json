@@ -108,6 +108,29 @@
       "groups": [
         "/advisors"
       ]
+    },
+    {
+      "username": "gina.newhire",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "gina.newhire@e2e.test",
+      "firstName": "Gina",
+      "lastName": "Newhire",
+      "attributes": {
+        "staffId": [
+          "E1005"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "/advisors"
+      ]
     }
   ],
   "clients": [
@@ -119,7 +142,7 @@
       "frontchannelLogout": true,
       "fullScopeAllowed": true,
       "redirectUris": [
-        "http://localhost:8080/realms/staff/broker/google-saml/endpoint*"
+        "http://localhost:8080/realms/staff/broker/*"
       ],
       "attributes": {
         "saml.server.signature": "true",
