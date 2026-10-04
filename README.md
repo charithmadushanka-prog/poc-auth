@@ -118,7 +118,7 @@ Attribute mapping (Google attribute → app attribute):
 
 Then **User access → ON** for a test group or organisational unit only.
 
-> If Google refuses an `http://localhost` ACS URL, Keycloak needs HTTPS for this test (a local certificate or a tunnel). We haven't been able to confirm this without an app.
+> Google requires the ACS URL to start with `https://`. For this test Keycloak must therefore be reachable over HTTPS (a local certificate or a tunnel), and the ACS URL and Entity ID above use that https address.
 
 ### 2. Connect it
 ```bash
