@@ -22,8 +22,13 @@ case "${1:-up}" in
   logs) exec docker compose logs -f ;;
   reset-db)
     # Local test data only. In production people are never deleted, only deactivated.
+    docker compose up -d --wait postgres     # works whether or not the stack is up
     docker compose exec -T postgres psql -U entra -d entra -c 'DROP DATABASE IF EXISTS poc_auth WITH (FORCE)'
-    docker compose restart origination-api   # recreates the schema and seed on start
+    if [[ -n "$(docker compose ps -q --status running origination-api)" ]]; then
+      docker compose restart origination-api # recreates the schema and seed on start
+    else
+      echo "poc_auth dropped; ./run.sh recreates it with the seed data"
+    fi
     exit 0 ;;
   up|test) ;;
   *) echo "usage: $0 [up|test|down|logs|reset-db]"; exit 2 ;;
