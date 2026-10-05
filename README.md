@@ -241,7 +241,7 @@ The deactivation and its history are stored in PostgreSQL (`staff_resource`, `st
 
 ## Impersonation (customer portal, TEST only)
 
-On the customer portal, choose **Sign in as staff to impersonate**. This logs in through the **staff** realm with a separate client, `customer-bff-impersonation`, which adds scope `impersonate-customer`. Next you pick a customer. After that the BFF calls the API with the **staff** JWT plus the header `X-Act-As-Customer: <personal number>`.
+On the customer portal, under **Staff: impersonate a customer (TEST ONLY)**, choose **Sign in as Sara Support (allowed)**. This logs in through the **staff** realm with a separate client, `customer-bff-impersonation`, which adds scope `impersonate-customer`. Next you pick a customer. After that the BFF calls the API with the **staff** JWT plus the header `X-Act-As-Customer: <personal number>`.
 
 The API allows this only when all of the following hold:
 - the token is a staff token
@@ -258,7 +258,7 @@ The picker shows only customers the API has already seen. After a restart, log i
 1. Customer portal → log in as `sven` → **Apply**. The console shows a **CUSTOMER** row with the masked personal number.
 2. Backoffice → `anna.advisor` → **Claim** works, **Approve** is refused (403, needs underwriter). The console shows **STAFF** with role and group.
 3. Log out, then sign in as `ulf.underwriter` → claim Sven's case → **Approve**. A row appears in `case_approval`.
-4. Customer portal → **Sign in as staff to impersonate** → `sara.support` → **Act as** Sven → apply. The console shows **STAFF AS CUSTOMER**. Try the same with `anna.advisor`: refused.
+4. Customer portal → **Sign in as Sara Support (allowed)** → password `test` → **Act as** Sven → **Apply**. The console shows **STAFF AS CUSTOMER**. Try **Sign in as Anna Advisor (refused)**: refused.
 5. Backoffice as `lars.leaver` → claim a case. Console → **Deactivate (HR leaver)**. The case is released, Lars's next click is refused (`deactivated`) even though his JWT hasn't expired, and logging in again shows *Account is disabled*. His row stays in `staff_resource` with its status history. **Reactivate** brings back the same row and the same Keycloak user.
 
 ## What the e2e test covers

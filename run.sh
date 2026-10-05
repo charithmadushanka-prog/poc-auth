@@ -92,6 +92,6 @@ cat <<'TXT'
   Entra Origination        http://localhost:4000            people log + business tables + leaver check
   pgAdmin (Postgres UI)    http://localhost:5050            no login; PostgreSQL entra / entra-poc
 
-  Impersonation: Customer portal -> "Sign in as staff to impersonate" -> sara.support
+  Impersonation: Customer portal -> "Sign in as Sara Support (allowed)" -> Act as a customer
   Stop:          ./run.sh down
 TXT
