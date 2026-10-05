@@ -6,7 +6,8 @@
 //	    personal number, roles). Find-or-create row; inactive staff refused.
 //
 // Also serves a demo UI on / with the people log and the business tables, plus
-// a mock "directory leaver check" that ends the staff member's broker session.
+// a mock "HR leaver" hook that deactivates (never deletes) a staff member and
+// ends their broker session.
 package main
 
 import (
@@ -52,7 +53,10 @@ func main() {
 		{Issuer: conf.customerIss, JWKSURL: internal + "/realms/customer/protocol/openid-connect/certs"},
 	}, jwtx.Options{ExpectTyp: "at+jwt", Audience: audience, Leeway: leeway()})
 
-	db := newStore()
+	db, err := newStore(web.Env("DATABASE_URL", "postgres://entra:entra-poc@localhost:5433/poc_auth"))
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
 	a := &api{db: db, v: verifier}
 
 	mux := http.NewServeMux()
@@ -68,8 +72,9 @@ func main() {
 	// Demo-only console (unauthenticated, bound to localhost by compose).
 	mux.HandleFunc("GET /{$}", a.consolePage)
 	mux.HandleFunc("GET /admin/state", a.state)
-	mux.HandleFunc("POST /admin/directory/suspend", a.directorySuspend)
-	mux.HandleFunc("POST /admin/directory/reactivate", a.directoryReactivate)
+	mux.HandleFunc("POST /admin/hr/deactivate", a.hrDeactivate)
+	mux.HandleFunc("POST /admin/hr/reactivate", a.hrReactivate)
+	mux.HandleFunc("DELETE /admin/staff/{id}", a.noDelete)
 
 	addr := web.Env("ADDR", ":4000")
 	log.Printf("entra-origination-api on %s (trusting %s, %s)", addr, conf.staffIss, conf.customerIss)
@@ -179,12 +184,22 @@ func (a *api) check(r *http.Request) (*Principal, int, error) {
 
 	// Step 2: identify the person (find or create the row).
 	if p.Kind == "staff" {
-		p.Staff = a.db.upsertStaff(p)
+		st, err := a.db.upsertStaff(p)
+		if err != nil {
+			log.Printf("upsert staff: %v", err)
+			return p, 503, errors.New("database unavailable")
+		}
+		p.Staff = st
 		if !p.Staff.Active {
-			return p, 403, errors.New("staff inactive (directory leaver) - refused")
+			return p, 403, errors.New("staff deactivated (HR leaver) - refused")
 		}
 	} else {
-		p.Customer = a.db.upsertCustomer(p)
+		c, err := a.db.upsertCustomer(p)
+		if err != nil {
+			log.Printf("upsert customer: %v", err)
+			return p, 503, errors.New("database unavailable")
+		}
+		p.Customer = c
 	}
 
 	// Impersonation (TEST ONLY): staff token + header naming the customer.
@@ -285,7 +300,12 @@ func (a *api) createApplication(w *statusWriter, r *http.Request, p *Principal) 
 	if p.ActingAs != nil {
 		by = p.Name + " (impersonating " + c.Name + ")"
 	}
-	writeJSON(w, 201, a.db.createItem(c, in.Amount, in.Purpose, by))
+	it, err := a.db.createItem(c, in.Amount, in.Purpose, by)
+	if err != nil {
+		deny(w, 500, "could not save application")
+		return
+	}
+	writeJSON(w, 201, it)
 }
 
 func staffOnly(w *statusWriter, p *Principal) bool {
@@ -351,7 +371,12 @@ func (a *api) setAvailability(w *statusWriter, r *http.Request, p *Principal) {
 		deny(w, 400, "status must be available|away")
 		return
 	}
-	writeJSON(w, 200, a.db.setAvailability(p.Staff, in.Status))
+	av, err := a.db.setAvailability(p.Staff, in.Status)
+	if err != nil {
+		deny(w, 500, "could not save availability")
+		return
+	}
+	writeJSON(w, 200, av)
 }
 
 func (a *api) listCustomers(w *statusWriter, r *http.Request, p *Principal) {

@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"pocauth/internal/web"
 )
@@ -14,22 +16,34 @@ func (a *api) state(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, a.db.snapshot())
 }
 
-func (a *api) directorySuspend(w http.ResponseWriter, r *http.Request) {
-	id := r.FormValue("id")
-	st, released, err := a.db.suspend(id, "suspended in Google Directory (mock)")
+const hrSource = "HR system (mock)"
+
+// hrDeactivate is the HR leaver hook: deactivate, never delete. Order matters:
+// the row first (the API refuses the very next call), then Keycloak.
+func (a *api) hrDeactivate(w http.ResponseWriter, r *http.Request) {
+	st, released, err := a.db.deactivate(r.FormValue("id"), hrSource, "left the company (HR system, mock)")
 	if err != nil {
 		writeJSON(w, 404, map[string]string{"error": err.Error()})
 		return
 	}
-	res := leaverResult{Staff: st.Name, ReleasedItems: released}
-	if msg, err := endBrokerSessions(st.Sub); err != nil {
-		res.BrokerResponse = "FAILED: " + err.Error()
+	res := leaverResult{Staff: st.Name, DeactivatedAt: st.DeactivatedAt.Format(time.RFC3339Nano), ReleasedItems: released}
+	var broker []string
+	if err := setBrokerUserEnabled(st.Sub, false); err != nil {
+		broker = append(broker, "disable FAILED: "+err.Error())
 	} else {
-		res.SessionsEnded, res.BrokerResponse = true, msg
+		res.BrokerUserLocked = true
+		broker = append(broker, "user disabled")
 	}
-	a.db.log(LogEntry{Method: "JOB", Path: "directory leaver check", Status: 200, Kind: "system",
+	if msg, err := endBrokerSessions(st.Sub); err != nil {
+		broker = append(broker, "logout FAILED: "+err.Error())
+	} else {
+		res.SessionsEnded = true
+		broker = append(broker, msg)
+	}
+	res.BrokerResponse = strings.Join(broker, "; ")
+	a.db.log(LogEntry{Method: "JOB", Path: "HR leaver: deactivate", Status: 200, Kind: "system",
 		Name: st.Name, PersonID: st.StaffID, Roles: st.Roles, Groups: st.Groups,
-		Reason: "inactive; released " + strconv.Itoa(len(released)) + " claimed case(s); broker: " + res.BrokerResponse})
+		Reason: "deactivated (not deleted); released " + strconv.Itoa(len(released)) + " claimed case(s); broker: " + res.BrokerResponse})
 	if r.FormValue("ui") != "" {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
@@ -37,16 +51,29 @@ func (a *api) directorySuspend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, res)
 }
 
-func (a *api) directoryReactivate(w http.ResponseWriter, r *http.Request) {
-	if err := a.db.reactivate(r.FormValue("id")); err != nil {
+func (a *api) hrReactivate(w http.ResponseWriter, r *http.Request) {
+	st, err := a.db.reactivate(r.FormValue("id"), hrSource)
+	if err != nil {
 		writeJSON(w, 404, map[string]string{"error": err.Error()})
 		return
 	}
+	if err := setBrokerUserEnabled(st.Sub, true); err != nil {
+		writeJSON(w, 502, map[string]string{"error": "re-enable broker user: " + err.Error()})
+		return
+	}
+	a.db.log(LogEntry{Method: "JOB", Path: "HR: reactivate", Status: 200, Kind: "system",
+		Name: st.Name, PersonID: st.StaffID, Roles: st.Roles, Groups: st.Groups, Reason: "reactivated; broker user enabled"})
 	if r.FormValue("ui") != "" {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}
 	writeJSON(w, 200, map[string]string{"ok": "reactivated"})
+}
+
+// noDelete makes the rule explicit: users are never deleted, only deactivated.
+func (a *api) noDelete(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+		"error": "users are never deleted (audit and compliance); use POST /admin/hr/deactivate"})
 }
 
 func (a *api) consolePage(w http.ResponseWriter, r *http.Request) {
@@ -80,13 +107,14 @@ var consoleTpl = web.Page(`{{define "content"}}
 </table></div>
 
 <div class="card"><h2>staff_resource</h2>
-<table><tr><th>ID</th><th>Name</th><th>Staff ID</th><th>Roles</th><th>Groups</th><th>Status</th><th>Mock directory (leaver check)</th></tr>
+<table><tr><th>ID</th><th>Name</th><th>Staff ID</th><th>Roles</th><th>Groups</th><th>Status</th><th>History</th><th>Mock HR system (leaver)</th></tr>
 {{range .S.StaffResource}}<tr><td>{{.ID}}</td><td>{{.Name}}<br><span class="muted">{{.Email}}</span></td><td>{{.StaffID}}</td>
 <td>{{range .Roles}}<span class="pill role">{{.}}</span>{{end}}</td><td>{{range .Groups}}<span class="pill">{{.}}</span>{{end}}</td>
-<td>{{if .Active}}<span class="s-ok status">active</span>{{else}}<span class="s-bad status">inactive</span><br><span class="muted">{{.InactiveReason}}</span>{{end}}</td>
-<td>{{if .Active}}<form class="inline" method="post" action="/admin/directory/suspend"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="ui" value="1"><button class="danger">Suspend in directory</button></form>
-{{else}}<form class="inline" method="post" action="/admin/directory/reactivate"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="ui" value="1"><button class="ghost">Reactivate</button></form>{{end}}</td></tr>
-{{else}}<tr><td colspan="7" class="muted">Rows are created on first API call (find or create from JWT).</td></tr>{{end}}</table></div>
+<td>{{if .Active}}<span class="s-ok status">active</span>{{else}}<span class="s-bad status">deactivated</span><br><span class="muted">{{.InactiveReason}}<br>since {{time .DeactivatedAt}}</span>{{end}}</td>
+<td class="muted">{{range .History}}{{time .At}} {{.Status}} · {{.Source}}<br>{{end}}</td>
+<td>{{if .Active}}<form class="inline" method="post" action="/admin/hr/deactivate"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="ui" value="1"><button class="danger">Deactivate (HR leaver)</button></form>
+{{else}}<form class="inline" method="post" action="/admin/hr/reactivate"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="ui" value="1"><button class="ghost">Reactivate</button></form>{{end}}</td></tr>
+{{else}}<tr><td colspan="8" class="muted">Rows are created on first API call (find or create from JWT). They are never deleted.</td></tr>{{end}}</table></div>
 
 <div class="grid">
 <div class="card"><h2>customer</h2><table><tr><th>ID</th><th>Name</th><th>Personal number</th></tr>

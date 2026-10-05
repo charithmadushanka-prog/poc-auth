@@ -1,7 +1,8 @@
 # One image recipe for every Go service: docker build --build-arg SERVICE=customer-bff .
 FROM golang:1.25-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
+RUN go mod download
 COPY internal ./internal
 COPY cmd ./cmd
 ARG SERVICE

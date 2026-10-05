@@ -1,0 +1,6 @@
+{ "Servers": { "1": {
+  "Name": "entra (compose postgres)", "Group": "Local",
+  "Host": "postgres", "Port": 5432,
+  "MaintenanceDB": "entra", "Username": "entra", "SSLMode": "prefer",
+  "PassFile": "/var/lib/pgadmin/pgpass"
+} } }

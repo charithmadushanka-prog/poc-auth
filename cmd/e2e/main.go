@@ -286,6 +286,43 @@ func kcAdminSessions(sub string) int {
 	return len(s)
 }
 
+// kcAdminUser returns the staff realm user's HTTP status and enabled flag.
+func kcAdminUser(sub string) (int, bool) {
+	resp, err := http.PostForm(kc+"/realms/master/protocol/openid-connect/token", url.Values{
+		"grant_type": {"password"}, "client_id": {"admin-cli"}, "username": {"admin"}, "password": {"admin"}})
+	if err != nil {
+		return 0, false
+	}
+	var t struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&t)
+	resp.Body.Close()
+	req, _ := http.NewRequest("GET", kc+"/admin/realms/staff/users/"+sub, nil)
+	req.Header.Set("Authorization", "Bearer "+t.AccessToken)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, false
+	}
+	defer resp.Body.Close()
+	var u struct {
+		Enabled bool `json:"enabled"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&u)
+	return resp.StatusCode, u.Enabled
+}
+
+// countStaff returns how many staff_resource rows have the staff ID.
+func countStaff(staffID string) int {
+	n := 0
+	for _, r := range rows("staff_resource") {
+		if r["staff_id"] == staffID {
+			n++
+		}
+	}
+	return n
+}
+
 func b64(v any) string {
 	b, _ := json.Marshal(v)
 	return base64.RawURLEncoding.EncodeToString(b)
@@ -415,11 +452,12 @@ func main() {
 	code, _ = saraBO.act(backoff, "/action", "op", "claim", "id", seeded)
 	check("support cannot claim (403)", code == 403, code)
 
-	section("6. Leaver: directory check marks staff inactive and ends the session")
+	section("6. HR leaver: deactivate (never delete), revoke in real time")
 	lars := newBrowser()
 	lars.login(backoff+"/login", "lars.leaver", "test")
 	st = lars.state(backoff)
 	larsSub := fmt.Sprint(st.Claims["sub"])
+	larsExp := time.Unix(int64(st.Claims["exp"].(float64)), 0)
 	code, _ = lars.act(backoff, "/action", "op", "me")
 	check("lars works normally before", code == 200, code)
 	var larsItem string
@@ -433,24 +471,64 @@ func main() {
 	check("lars claims a case", code == 200, code)
 	check("lars has a broker session", kcAdminSessions(larsSub) >= 1)
 	row := find("staff_resource", "staff_id", "E1004")
-	resp, err := http.PostForm(api+"/admin/directory/suspend", url.Values{"id": {fmt.Sprint(row["id"])}})
+	larsID := fmt.Sprint(row["id"])
+	logsBefore := len(rows("log"))
+
+	req, _ := http.NewRequest("DELETE", api+"/admin/staff/"+larsID, nil)
+	resp, err := http.DefaultClient.Do(req)
+	check("deleting a user is refused (405, deactivate instead)", err == nil && resp.StatusCode == 405, resp)
+	if err == nil {
+		resp.Body.Close()
+	}
+
+	resp, err = http.PostForm(api+"/admin/hr/deactivate", url.Values{"id": {larsID}})
 	var lr map[string]any
 	if err == nil {
 		_ = json.NewDecoder(resp.Body).Decode(&lr)
 		resp.Body.Close()
 	}
-	check("leaver check ended broker sessions", lr["broker_sessions_ended"] == true, lr)
-	check("claimed case released", strings.Contains(fmt.Sprint(lr["released_items"]), larsItem), lr["released_items"])
-	check("Keycloak has 0 sessions for lars", kcAdminSessions(larsSub) == 0)
-	check("work item back to submitted", find("work_item", "id", larsItem)["status"] == "submitted")
+	deactivated := time.Now()
+	// Real time: the very next call with the same, unexpired JWT is refused.
 	code, body = lars.act(backoff, "/action", "op", "me")
-	check("lars' still-valid JWT is refused: inactive (403)", code == 403 && strings.Contains(body, "inactive"), code, body)
-	resp, _ = http.PostForm(api+"/admin/directory/reactivate", url.Values{"id": {fmt.Sprint(row["id"])}})
+	lag := time.Since(deactivated)
+	check(fmt.Sprintf("REAL TIME: next call refused %dms after deactivation, JWT still valid for %ds",
+		lag.Milliseconds(), int(time.Until(larsExp).Seconds())),
+		code == 403 && strings.Contains(body, "deactivated") && time.Now().Before(larsExp), code, body)
+	check("broker user disabled (no new login, no refresh)", lr["broker_user_disabled"] == true, lr)
+	check("broker sessions ended", lr["broker_sessions_ended"] == true, lr)
+	check("Keycloak has 0 sessions for lars", kcAdminSessions(larsSub) == 0)
+	check("claimed case released", strings.Contains(fmt.Sprint(lr["released_items"]), larsItem), lr["released_items"])
+	check("work item back to submitted", find("work_item", "id", larsItem)["status"] == "submitted")
+
+	kcCode, enabled := kcAdminUser(larsSub)
+	check("Keycloak user kept, not deleted (200, enabled=false)", kcCode == 200 && !enabled, kcCode, enabled)
+	row = find("staff_resource", "id", larsID)
+	check("staff_resource row kept, not deleted", row != nil)
+	check("row marked deactivated with timestamp", row != nil && row["active"] == false && row["deactivated_at"] != nil, row)
+	hist := fmt.Sprint(row["status_history"])
+	check("status history keeps active -> deactivated", strings.Contains(hist, "active") && strings.Contains(hist, "deactivated"), hist)
+	check("lars' earlier log entries kept", len(rows("log")) > logsBefore && logHas(func(e map[string]any) bool {
+		return e["name"] == "Lars Leaver" && e["status"] == float64(200)
+	}))
+
+	lars3 := newBrowser()
+	_, page = lars3.login(backoff+"/login", "lars.leaver", "test")
+	check("deactivated lars cannot log in again (Keycloak: account disabled)", !lars3.state(backoff).LoggedIn &&
+		strings.Contains(strings.ToLower(page), "disabled"), snippet(page))
+
+	resp, _ = http.PostForm(api+"/admin/hr/reactivate", url.Values{"id": {larsID}})
 	resp.Body.Close()
+	_, enabled = kcAdminUser(larsSub)
+	check("reactivation re-enables the same Keycloak user", enabled)
 	lars2 := newBrowser()
 	lars2.login(backoff+"/login", "lars.leaver", "test")
 	code, _ = lars2.act(backoff, "/action", "op", "me")
 	check("after reactivation lars can log in again", code == 200, code)
+	row = find("staff_resource", "staff_id", "E1004")
+	check("same staff_resource row reused (no duplicate)", fmt.Sprint(row["id"]) == larsID && countStaff("E1004") == 1, row["id"])
+	h, _ := row["status_history"].([]any)
+	last := func(i int) any { return h[len(h)-i].(map[string]any)["status"] }
+	check("history ends deactivated -> active (nothing overwritten)", len(h) >= 3 && last(2) == "deactivated" && last(1) == "active", h)
 
 	section("7. Token check middleware rejects bad tokens (direct API calls)")
 	code, body = callAPI("", "/api/me")
@@ -492,7 +570,9 @@ func main() {
 		return e["kind"] == "staff" && e["name"] == "Anna Advisor" && has(strs(e["roles"]), "advisor") && has(strs(e["groups"]), "advisors")
 	}))
 	check("log masks personal numbers", !strings.Contains(fmt.Sprint(rows("log")), "199001019999"))
-	check("log records refusal reasons", logHas(func(e map[string]any) bool { return strings.Contains(fmt.Sprint(e["reason"]), "inactive") }))
+	check("log records refusal reasons", logHas(func(e map[string]any) bool {
+		return strings.Contains(fmt.Sprint(e["reason"]), "deactivated (HR leaver)")
+	}))
 	_, cons, _ := newBrowser().do("GET", api+"/", nil)
 	check("console page renders", strings.Contains(cons, "People log") && strings.Contains(cons, "STAFF AS CUSTOMER"))
 

@@ -3,6 +3,8 @@
 #   Customer portal (Customer BFF)              http://localhost:3000
 #   Backoffice portal (Backoffice BFF)          http://localhost:3001
 #   Entra Origination API + people-log console  http://localhost:4000
+#   PostgreSQL 16, API tables in db poc_auth    localhost:5433  (entra / entra-poc)
+#   pgAdmin (PostgreSQL UI)                     http://localhost:5050
 #
 # Browser-facing URLs use localhost:8080 (= the iss claim); services reach
 # Keycloak on the docker network as keycloak:8080 for token/JWKS/admin calls.
@@ -30,8 +32,10 @@ services:
       KC_ADMIN_CLIENT: origination-api-admin
       KC_ADMIN_SECRET: origination-admin-secret
       JWT_LEEWAY: 5s
+      # Own database next to the existing entra one; created on first start.
+      DATABASE_URL: postgres://entra:entra-poc@postgres:5432/poc_auth
     ports: ["127.0.0.1:4000:4000"]
-    depends_on: { keycloak: { condition: service_healthy } }
+    depends_on: { keycloak: { condition: service_healthy }, postgres: { condition: service_healthy } }
 
   customer-bff:
     build: { context: ., args: { SERVICE: customer-bff } }
@@ -51,3 +55,48 @@ services:
       API_URL: http://origination-api:4000
     ports: ["127.0.0.1:3001:3001"]
     depends_on: { keycloak: { condition: service_healthy }, origination-api: { condition: service_started } }
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: entra
+      POSTGRES_DB: entra
+      # POC-only password. Applies to a fresh volume; the existing entra-pgdata was
+      # switched with ALTER USER entra PASSWORD 'entra-poc'.
+      POSTGRES_PASSWORD: entra-poc
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: [entra-pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U entra -d entra"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Desktop mode (no pgAdmin login) - acceptable only because it binds to 127.0.0.1.
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: unused
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
+      PGADMIN_REPLACE_SERVERS_ON_STARTUP: "True"
+    # Write a pgpass so pgAdmin connects without asking for the password.
+    entrypoint: ["/bin/sh", "-c", "echo 'postgres:5432:*:entra:entra-poc' > /var/lib/pgadmin/pgpass && chmod 600 /var/lib/pgadmin/pgpass && exec /entrypoint.sh"]
+    ports: ["127.0.0.1:5050:80"]
+    volumes:
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - pgadmin-data:/var/lib/pgadmin
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/misc/ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    depends_on: { postgres: { condition: service_healthy } }
+
+volumes:
+  # Pre-existing volume from the standalone entra-postgres container; kept as-is.
+  entra-pgdata: { external: true }
+  pgadmin-data:
